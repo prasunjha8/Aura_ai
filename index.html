@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aura - Your AI Companion</title>
+    
+    <style>
+        /* --- Basic Reset & Body Styling --- */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html, body {
+            height: 100%;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #111827; /* Dark Gray */
+            color: #F9FAFB; /* Almost White */
+        }
+
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+
+        /* --- Main App Container --- */
+        .app-container {
+            width: 100%;
+            max-width: 42rem; /* 672px */
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            background-color: #1F2937; /* Darker Gray */
+            border-radius: 1rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            overflow: hidden;
+        }
+
+        /* --- Header --- */
+        header {
+            background-color: #374151; /* Medium Gray */
+            padding: 1rem;
+            text-align: center;
+            border-bottom: 1px solid #4B5563;
+        }
+
+        header h1 {
+            font-size: 1.25rem;
+            font-weight: 700;
+        }
+
+        #status-display {
+            font-size: 0.75rem;
+            color: #9CA3AF; /* Light Gray */
+            margin-top: 0.25rem;
+        }
+
+        /* --- Chat Messages --- */
+        main#chat-container {
+            flex-grow: 1;
+            padding: 1.5rem;
+            overflow-y: auto;
+        }
+        
+        /* Custom Scrollbar */
+        main#chat-container::-webkit-scrollbar { width: 8px; }
+        main#chat-container::-webkit-scrollbar-track { background: #1F2937; }
+        main#chat-container::-webkit-scrollbar-thumb { background: #4B5563; border-radius: 4px; }
+
+
+        .message {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+            max-width: 80%;
+        }
+
+        .message.user {
+            margin-left: auto;
+            flex-direction: row-reverse;
+        }
+        
+        .message-bubble {
+            padding: 0.75rem 1rem;
+            border-radius: 0.75rem;
+            word-wrap: break-word;
+        }
+
+        .message.ai .message-bubble {
+            background-color: #374151; /* Medium Gray */
+            border-top-left-radius: 0;
+        }
+
+        .message.user .message-bubble {
+            background-color: #2563EB; /* Blue */
+            border-top-right-radius: 0;
+        }
+        
+        .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        
+        .message.ai .avatar { background-color: #4F46E5; /* Indigo */ }
+        .message.user .avatar { background-color: #1D4ED8; /* Darker Blue */ }
+
+        /* --- Footer & Input Form --- */
+        footer {
+            padding: 1rem;
+            border-top: 1px solid #374151;
+        }
+
+        #chat-form {
+            display: flex;
+            gap: 1rem;
+        }
+
+        #message-input {
+            flex-grow: 1;
+            background-color: #374151;
+            border: 1px solid #4B5563;
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+            color: white;
+            font-size: 1rem;
+        }
+
+        #message-input:focus {
+            outline: none;
+            border-color: #4F46E5;
+            box-shadow: 0 0 0 2px #4F46E5;
+        }
+
+        #chat-form button {
+            background-color: #4F46E5; /* Indigo */
+            color: white;
+            border: none;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        #chat-form button:hover {
+            background-color: #4338CA;
+        }
+        
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        <!-- Header -->
+        <header>
+            <h1>Aura</h1>
+            <p id="status-display">Connecting...</p>
+        </header>
+
+        <!-- Chat Messages Container -->
+        <main id="chat-container">
+            <!-- Messages will be dynamically inserted here -->
+        </main>
+
+        <!-- Message Input Form -->
+        <footer>
+            <form id="chat-form">
+                <input type="text" id="message-input" placeholder="Type your message..." autocomplete="off">
+                <button type="submit" aria-label="Send">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                </button>
+            </form>
+        </footer>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+        // Import Firebase modules
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, collection, addDoc, query, onSnapshot, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- CONFIGURATION ---
+        const appId = 'aura-ai-companion-mvp';
+        const userId = 'local-dev-user'; // Using a fixed user ID for local development
+        
+        const firebaseConfig = {
+            apiKey: "AIzaSyCbwkc1gOqbUC6Ic64RsAMvtNxTUBO89uU",
+            authDomain: "aura-ai-companion-264cf.firebaseapp.com",
+            projectId: "aura-ai-companion-264cf",
+            storageBucket: "aura-ai-companion-264cf.appspot.com",
+            messagingSenderId: "255997736344",
+            appId: "1:255997736344:web:9bff30a1c81e5cfe22e7ed",
+            measurementId: "G-337S1X83CH"
+        };
+        
+        // --- DOM ELEMENTS ---
+        const chatContainer = document.getElementById('chat-container');
+        const chatForm = document.getElementById('chat-form');
+        const messageInput = document.getElementById('message-input');
+        const statusDisplay = document.getElementById('status-display');
+
+        // --- APP INITIALIZATION ---
+        let app;
+        let db;
+        let messagesCollectionRef = null;
+        let unsubscribeMessages = null;
+
+        try {
+            app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            statusDisplay.textContent = `Connected as: ${userId}`;
+            messagesCollectionRef = collection(db, `artifacts/${appId}/users/${userId}/messages`);
+            listenForMessages();
+        } catch (e) {
+            console.error("Firebase initialization failed:", e);
+            statusDisplay.textContent = "Firebase initialization failed.";
+            statusDisplay.style.color = "#EF4444";
+        }
+
+        // --- FIRESTORE REAL-TIME LISTENER ---
+        function listenForMessages() {
+            if (!messagesCollectionRef) return;
+            const q = query(messagesCollectionRef, orderBy("timestamp"));
+
+            unsubscribeMessages = onSnapshot(q, (querySnapshot) => {
+                chatContainer.innerHTML = '';
+                if (querySnapshot.empty) {
+                     chatContainer.innerHTML = '<div style="text-align: center; color: #9CA3AF;">Aura is ready. Say something!</div>';
+                } else {
+                    querySnapshot.forEach((doc) => {
+                        const msg = doc.data();
+                        addMessageToUI(msg.sender, msg.text);
+                    });
+                }
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            }, (error) => {
+                console.error("Error listening to messages:", error);
+            });
+        }
+
+        // --- UI FUNCTIONS ---
+        function addMessageToUI(sender, text) {
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('message', sender);
+            
+            messageDiv.innerHTML = `
+                <div class="avatar"></div>
+                <div class="message-bubble">
+                    <p>${text}</p>
+                </div>
+            `;
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        // --- CHAT FORM SUBMISSION ---
+        chatForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const messageText = messageInput.value.trim();
+            if (!messageText) return;
+
+            messageInput.value = '';
+            try {
+                await addDoc(messagesCollectionRef, {
+                    sender: 'user',
+                    text: messageText,
+                    timestamp: serverTimestamp()
+                });
+            } catch (error) {
+                console.error("Error sending message:", error);
+            }
+        });
+    </script>
+</body>
+</html>
